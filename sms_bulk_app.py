@@ -146,7 +146,6 @@ def webhook():
         'Content-type': 'application/json; charset=utf-8',
         'username': SMS_USERNAME,
         'pwd': SMS_PASSWORD,
-        'Host': 'sms.oneclick.rs'
     }
     try:
         sms_response = requests.post(
