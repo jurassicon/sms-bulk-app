@@ -31,6 +31,16 @@ SMS_API_URL = os.getenv('SMS_API_URL')
 SMS_USERNAME = os.getenv('SMS_USERNAME')
 SMS_PASSWORD = os.getenv('SMS_PASSWORD')
 
+REQUIRED_ENV = [
+    'API_KEY', 'MOYKLASS_API_URL', 'SMS_API_URL',
+    'SMS_USERNAME', 'SMS_PASSWORD'
+]
+
+for env in REQUIRED_ENV:
+    if not globals().get(env):
+        app.logger.critical(f'Missing required environment variable: {env}')
+        raise SystemExit(f'Environment variable {env} is not set')
+
 
 def get_saved_token():
     try:
@@ -44,14 +54,14 @@ def get_saved_token():
     except FileNotFoundError:
         app.logger.info('Token file not found; requesting new token.')
     except (json.JSONDecodeError, KeyError) as e:
-        app.logger.error(f"Error reading token file: {str(e)}")
+        app.logger.error(f'Error reading token file: {str(e)}')
     return None
 
 
 def save_token(token, expires_at):
     with open(TOKEN_FILE_PATH, 'w') as token_file:
         json.dump({'accessToken': token, 'expiresAt': expires_at}, token_file)
-    app.logger.info("Token saved successfully.")
+    app.logger.info('Token saved successfully.')
 
 
 def get_token():
@@ -62,7 +72,7 @@ def get_token():
     url = f'{MOYKLASS_API_URL}/company/auth/getToken'
     headers = {'Content-Type': 'application/json'}
     payload = {'apiKey': API_KEY}
-    app.logger.info("Requesting new token")
+    app.logger.info('Requesting new token')
     response = requests.post(url, json=payload, headers=headers)
     if response.status_code == http.HTTPStatus.OK:
         token_data = response.json()
@@ -74,8 +84,8 @@ def get_token():
         return token
     else:
         app.logger.error(
-            f"Failed to obtain token: {response.status_code}"
-            f" - {response.text}"
+            f'Failed to obtain token: {response.status_code}'
+            f' - {response.text}'
         )
     return None
 
@@ -87,7 +97,7 @@ def mask_phone_number(phone):
 def fetch_user_phone(user_id):
     token = get_token()
     if not token:
-        app.logger.error("Failed to obtain token.")
+        app.logger.error('Failed to obtain token.')
         return None
 
     headers = {'x-access-token': token}
@@ -98,8 +108,8 @@ def fetch_user_phone(user_id):
         return user_data.get('phone')
     else:
         app.logger.error(
-            f"Failed to fetch user data: {response.status_code}"
-            f" - {response.text}"
+            f'Failed to fetch user data: {response.status_code}'
+            f' - {response.text}'
         )
     return None
 
@@ -107,19 +117,19 @@ def fetch_user_phone(user_id):
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
-    app.logger.info(f"Received data: {data}")
+    app.logger.info(f'Received data: {data}')
     user_id = data.get('object', {}).get('userId')
     if not user_id:
-        app.logger.error("No user ID provided.")
+        app.logger.error('No user ID provided.')
         return jsonify(
-            {"status": "error", "message": "No user ID provided"}
+            {'status': 'error', 'message': 'No user ID provided'}
         ), http.HTTPStatus.BAD_REQUEST
 
     phone_number = fetch_user_phone(user_id)
     if not phone_number:
-        app.logger.error("No phone number available for user.")
+        app.logger.error('No phone number available for user.')
         return jsonify(
-            {"status": "error", "message": "No phone number available"}
+            {'status': 'error', 'message': 'No phone number available'}
         ), http.HTTPStatus.NOT_FOUND
 
     message = (
@@ -128,7 +138,7 @@ def webhook():
                ' i termine. Radujemo se vasem napretku!'
     )
     sms_payload = {
-        'sender': "SmartLab",
+        'sender': 'SmartLab',
         'message': message,
         'phone': phone_number
     }
@@ -144,21 +154,21 @@ def webhook():
         )
         if sms_response.status_code == http.HTTPStatus.OK:
             app.logger.info(
-                f"Message sent to {mask_phone_number(phone_number)}"
+                f'Message sent to {mask_phone_number(phone_number)}'
             )
-            return jsonify({"status": "success"}), http.HTTPStatus.OK
+            return jsonify({'status': 'success'}), http.HTTPStatus.OK
         else:
             app.logger.error(
-                f"Failed to send message to {mask_phone_number(phone_number)}:"
-                f" {sms_response.text}"
+                f'Failed to send message to {mask_phone_number(phone_number)}:'
+                f' {sms_response.text}'
             )
             return jsonify(
-                {"status": "error", "message": "Failed to send SMS"}
+                {'status': 'error', 'message': 'Failed to send SMS'}
             ), http.HTTPStatus.INTERNAL_SERVER_ERROR
     except requests.exceptions.RequestException as e:
-        app.logger.error(f"Connection error while sending SMS: {str(e)}")
+        app.logger.error(f'Connection error while sending SMS: {str(e)}')
         return jsonify(
-            {"status": "error", "message": "SMS service unavailable"}
+            {'status': 'error', 'message': 'SMS service unavailable'}
         ), http.HTTPStatus.INTERNAL_SERVER_ERROR
 
 
