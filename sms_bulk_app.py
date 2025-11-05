@@ -112,15 +112,21 @@ def webhook():
     if not user_id:
         app.logger.error("No user ID provided.")
         return jsonify(
-            {"status": "error", "message": "No user ID provided"}), 200
+            {"status": "error", "message": "No user ID provided"}
+        ), http.HTTPStatus.BAD_REQUEST
 
     phone_number = fetch_user_phone(user_id)
     if not phone_number:
         app.logger.error("No phone number available for user.")
         return jsonify(
-            {"status": "error", "message": "No phone number available"}), 200
+            {"status": "error", "message": "No phone number available"}
+        ), http.HTTPStatus.NOT_FOUND
 
-    message = 'Podsecamo vas da imate jos dva uplacena casa srpskog jezika. Da biste nastavili sa casovima, mozete nam se javiti za uplatu i termine. Radujemo se vasem napretku!'
+    message = (
+        'Podsecamo vas da imate jos dva uplacena casa srpskog jezika. '
+               'Da biste nastavili sa casovima, mozete nam se javiti za uplatu'
+               ' i termine. Radujemo se vasem napretku!'
+    )
     sms_payload = {
         'sender': "SmartLab",
         'message': message,
@@ -140,7 +146,7 @@ def webhook():
             app.logger.info(
                 f"Message sent to {mask_phone_number(phone_number)}"
             )
-            return jsonify({"status": "success"}), 200
+            return jsonify({"status": "success"}), http.HTTPStatus.OK
         else:
             app.logger.error(
                 f"Failed to send message to {mask_phone_number(phone_number)}:"
@@ -148,12 +154,12 @@ def webhook():
             )
             return jsonify(
                 {"status": "error", "message": "Failed to send SMS"}
-            ), 500
+            ), http.HTTPStatus.INTERNAL_SERVER_ERROR
     except requests.exceptions.RequestException as e:
         app.logger.error(f"Connection error while sending SMS: {str(e)}")
         return jsonify(
             {"status": "error", "message": "SMS service unavailable"}
-        ), 500
+        ), http.HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 if __name__ == '__main__':
