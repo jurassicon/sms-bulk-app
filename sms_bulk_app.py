@@ -134,8 +134,8 @@ def webhook():
 
     message = (
         'Podsecamo vas da imate jos dva uplacena casa srpskog jezika. '
-        'Da biste nastavili sa casovima, mozete nam se javiti za uplatu'
-        ' i termine. Radujemo se vasem napretku!'
+        'Da biste nastavili sa casovima, mozete nam se javiti za uplatu '
+        'i termine. Radujemo se vasem napretku!'
     )
     sms_payload = {
         'sender': 'SmartLab',
