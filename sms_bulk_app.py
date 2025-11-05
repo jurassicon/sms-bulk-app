@@ -3,6 +3,7 @@ import http
 import json
 import logging
 import os
+import time
 from logging.handlers import RotatingFileHandler
 
 import requests
@@ -102,15 +103,27 @@ def fetch_user_phone(user_id):
 
     headers = {'x-access-token': token}
     url = f'{MOYKLASS_API_URL}/company/users/{user_id}'
-    response = requests.get(url, headers=headers)
-    if response.status_code == http.HTTPStatus.OK:
-        user_data = response.json()
-        return user_data.get('phone')
-    else:
-        app.logger.error(
-            f'Failed to fetch user data: {response.status_code}'
-            f' - {response.text}'
-        )
+    for attempt in range(3):
+        try:
+            response = requests.get(url, headers=headers, timeout=5)
+            if response.status_code == http.HTTPStatus.OK:
+                user_data = response.json()
+                return user_data.get('phone')
+
+            app.logger.warning(
+                f'Attempt {attempt + 1}/3: Failed to fetch user data '
+                f'(status {response.status_code}). Retrying...'
+            )
+
+        except requests.exceptions.RequestException as e:
+            app.logger.warning(
+                f'Attempt {attempt + 1}/3: '
+                f'Connection error: {str(e)}. Retrying...'
+            )
+        time.sleep(1)
+    app.logger.error(
+        f'Failed to fetch user data after 3 attempts for user {user_id}')
+
     return None
 
 
