@@ -1,18 +1,26 @@
-from flask import Flask, request, jsonify
-import requests
-import logging
-from logging.handlers import RotatingFileHandler
 import datetime
+import http
 import json
+import logging
 import os
+from logging.handlers import RotatingFileHandler
+
+import requests
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
 LOG_FILE_PATH = '/var/www/sms_bulk_app/sms_bulk_app.log'
 TOKEN_FILE_PATH = '/var/www/token.json'
 
-file_handler = RotatingFileHandler(LOG_FILE_PATH, maxBytes=1048576, backupCount=10)
-file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'))
+file_handler = RotatingFileHandler(
+    LOG_FILE_PATH,
+    maxBytes=1048576,
+    backupCount=10
+)
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
+)
 file_handler.setLevel(logging.INFO)
 app.logger.addHandler(file_handler)
 app.logger.setLevel(logging.INFO)
@@ -22,6 +30,7 @@ MOYKLASS_API_URL = os.getenv('MOYKLASS_API_URL')
 SMS_API_URL = os.getenv('SMS_API_URL')
 SMS_USERNAME = os.getenv('SMS_USERNAME')
 SMS_PASSWORD = os.getenv('SMS_PASSWORD')
+
 
 def get_saved_token():
     try:
@@ -38,10 +47,12 @@ def get_saved_token():
         app.logger.error(f"Error reading token file: {str(e)}")
     return None
 
+
 def save_token(token, expires_at):
     with open(TOKEN_FILE_PATH, 'w') as token_file:
         json.dump({'accessToken': token, 'expiresAt': expires_at}, token_file)
     app.logger.info("Token saved successfully.")
+
 
 def get_token():
     saved_token = get_saved_token()
@@ -53,15 +64,25 @@ def get_token():
     payload = {'apiKey': API_KEY}
     app.logger.info("Requesting new token")
     response = requests.post(url, json=payload, headers=headers)
-    if response.status_code == 200:
+    if response.status_code == http.HTTPStatus.OK:
         token_data = response.json()
         token = token_data['accessToken']
-        expires_at = datetime.datetime.strptime(token_data['expiresAt'], '%Y-%m-%dT%H:%M:%S%z').timestamp()
+        expires_at = datetime.datetime.strptime(
+            token_data['expiresAt'], '%Y-%m-%dT%H:%M:%S%z'
+        ).timestamp()
         save_token(token, expires_at)
         return token
     else:
-        app.logger.error(f"Failed to obtain token: {response.status_code} - {response.text}")
+        app.logger.error(
+            f"Failed to obtain token: {response.status_code}"
+            f" - {response.text}"
+        )
     return None
+
+
+def mask_phone_number(phone):
+    return phone[:3] + '*' * (len(phone) - 5) + phone[-2:]
+
 
 def fetch_user_phone(user_id):
     token = get_token()
@@ -72,12 +93,16 @@ def fetch_user_phone(user_id):
     headers = {'x-access-token': token}
     url = f'{MOYKLASS_API_URL}/company/users/{user_id}'
     response = requests.get(url, headers=headers)
-    if response.status_code == 200:
+    if response.status_code == http.HTTPStatus.OK:
         user_data = response.json()
         return user_data.get('phone')
     else:
-        app.logger.error(f"Failed to fetch user data: {response.status_code} - {response.text}")
+        app.logger.error(
+            f"Failed to fetch user data: {response.status_code}"
+            f" - {response.text}"
+        )
     return None
+
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -86,12 +111,14 @@ def webhook():
     user_id = data.get('object', {}).get('userId')
     if not user_id:
         app.logger.error("No user ID provided.")
-        return jsonify({"status": "error", "message": "No user ID provided"}), 200
+        return jsonify(
+            {"status": "error", "message": "No user ID provided"}), 200
 
     phone_number = fetch_user_phone(user_id)
     if not phone_number:
         app.logger.error("No phone number available for user.")
-        return jsonify({"status": "error", "message": "No phone number available"}), 200
+        return jsonify(
+            {"status": "error", "message": "No phone number available"}), 200
 
     message = 'Podsecamo vas da imate jos dva uplacena casa srpskog jezika. Da biste nastavili sa casovima, mozete nam se javiti za uplatu i termine. Radujemo se vasem napretku!'
     sms_payload = {
@@ -106,16 +133,28 @@ def webhook():
         'Host': 'sms.oneclick.rs'
     }
     try:
-        sms_response = requests.post(SMS_API_URL, json=sms_payload, headers=headers)
-        if sms_response.status_code == 200:
-            app.logger.info(f"Message sent to {phone_number}")
+        sms_response = requests.post(
+            SMS_API_URL, json=sms_payload, headers=headers
+        )
+        if sms_response.status_code == http.HTTPStatus.OK:
+            app.logger.info(
+                f"Message sent to {mask_phone_number(phone_number)}"
+            )
             return jsonify({"status": "success"}), 200
         else:
-            app.logger.error(f"Failed to send message to {phone_number}: {sms_response.text}")
-            return jsonify({"status": "error", "message": "Failed to send SMS"}), 500
+            app.logger.error(
+                f"Failed to send message to {mask_phone_number(phone_number)}:"
+                f" {sms_response.text}"
+            )
+            return jsonify(
+                {"status": "error", "message": "Failed to send SMS"}
+            ), 500
     except requests.exceptions.RequestException as e:
         app.logger.error(f"Connection error while sending SMS: {str(e)}")
-        return jsonify({"status": "error", "message": "SMS service unavailable"}), 500
+        return jsonify(
+            {"status": "error", "message": "SMS service unavailable"}
+        ), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
