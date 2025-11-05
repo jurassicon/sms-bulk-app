@@ -37,7 +37,7 @@ REQUIRED_ENV = [
 ]
 
 for env in REQUIRED_ENV:
-    if not globals().get(env):
+    if not os.getenv(env):
         app.logger.critical(f'Missing required environment variable: {env}')
         raise SystemExit(f'Environment variable {env} is not set')
 
